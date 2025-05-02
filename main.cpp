@@ -9,11 +9,15 @@ never touch. Adjacent tiles in this program do not count corners.
 */
 
 /* 
+BUGS:
+- does not work for rectangle worlds
+- occasionally tiles will be missing (more obvious in larger worlds)
 Possible todo:
 - Add const to all that can be applied to.
 - add proper .h file and #DEFINE statements?
 - Seperate the world creation algorithm from the world, so that a world can specify the genertion algorithm used and only need the color ID returned.
 - Add weights to COLOR rules.
+- User a better random algorithm.
 */
 
 #include <iostream>
@@ -31,7 +35,7 @@ using namespace std;
 // Information that controls the world and tile size
 const int WORLD_WIDTH = 32;
 const int WORLD_HEIGHT = 32;
-const int TILE_SIZE = 16;
+const int TILE_SIZE = 8;
 const int SCREEN_WIDTH = TILE_SIZE*WORLD_WIDTH;
 const int SCREEN_HEIGHT = TILE_SIZE*WORLD_HEIGHT;
 // Wave function collapse rule set
@@ -44,7 +48,10 @@ const Color COLORS[] = {DARKBLUE,BLUE,YELLOW,GREEN,DARKGREEN}; // First testing 
 //     ,BLUE,DARKBLUE,BLUE // Ocean
 //     ,LIGHTGRAY,GRAY,DARKGRAY,MAROON // Volcanic
 //     };
-
+// const Color COLORS[] = {BROWN,WHITE,LIGHTGRAY // Snowy Mountains
+//      ,BEIGE,GREEN,DARKGREEN,GREEN,BEIGE // Forest
+//     ,LIGHTGRAY,GRAY,DARKGRAY,MAROON // Volcanic
+//     };
 int collapsedTiles = 0;
 int selectedX, selectedY;
 
@@ -113,6 +120,7 @@ struct Tile {
         if (IDRange.lower == IDRange.upper){
             ID = IDRange.lower;
             isCollapsed = true;
+            collapsedTiles += 1;
         }
     }
 
@@ -127,12 +135,12 @@ Tile World[WORLD_HEIGHT][WORLD_WIDTH];
 
 // Confirm coordinate is within world bounds and is also uncollapsed
 bool isExistingUncollapsedTile(int x, int y) {
-    return (x < WORLD_WIDTH && y < WORLD_HEIGHT) && (x >= 0 && y >= 0) && !World[x][y].isCollapsed;
+    return (y < WORLD_WIDTH && x < WORLD_HEIGHT) && (x >= 0 && y >= 0) && !World[x][y].isCollapsed;
 }
 
 // Confirm coordinate is within world bounds
 bool isExistingTile(int x, int y) {
-    return (x < WORLD_WIDTH && y < WORLD_HEIGHT) && (x >= 0 && y >= 0);
+    return (y < WORLD_WIDTH && x < WORLD_HEIGHT) && (x >= 0 && y >= 0);
 }
 
 // Confirm tile ID exists.
@@ -141,7 +149,7 @@ bool isValidTileID(int i) {
         return true;
     return false;
 }
-
+void collapse(Tile &t);
 // Given a tile return the tiles adjacent to it. Does not count corners as adjacent.
 vector<reference_wrapper<Tile>> getAdjacentTiles(Tile &t) {
 
@@ -193,6 +201,10 @@ void updateAndCascadeTile(Tile &t) {
             ++it;
         }
     }
+
+    if (!t.isCollapsed)
+        collapse(t);
+
     return;
 }
 
@@ -227,8 +239,6 @@ void collapse(Tile &t) {
 
     // Pick a random state from available states, or just become the only possible state.
     if (t.IDRange.upper != t.IDRange.lower){ 
-        if (t.IDRange.upper - t.IDRange.lower + 1 == 0)
-            cout << "division of 0";
         t.ID = t.IDRange.lower + (rand() % (t.IDRange.upper - t.IDRange.lower + 1));
     }
     else
@@ -271,19 +281,20 @@ int main() {
     int y = rand()%WORLD_WIDTH;
     collapse(World[x][y]);
 
+    cout << "-------------DEBUG---------------" << endl;
+    cout << "first collapse at " << x << "," << y << endl;
+    cout << "After first collapse, int collapsedTiles:" << collapsedTiles << " of " << WORLD_HEIGHT*WORLD_WIDTH << endl;
     // Catch all remaining uncollapsed tiles.
     for (int h = 0; h < WORLD_HEIGHT; h+=1) {
-        if(collapsedTiles == WORLD_HEIGHT*WORLD_WIDTH)
-            break;
         for (int w = 0; w < WORLD_WIDTH; w+=1) {
-            if(collapsedTiles == WORLD_HEIGHT*WORLD_WIDTH) {
-                collapse(World[w][h]);
-            } else {
+            if (collapsedTiles == WORLD_HEIGHT*WORLD_WIDTH)
                 break;
-            }
+            if (!World[h][w].isCollapsed)
+                updateAndCascadeTile(World[h][w]);
         }
     }
-   
+   //DEBUG
+   cout << "After cleanup loop, int collapsedTiles:" << collapsedTiles << " of " << WORLD_HEIGHT*WORLD_WIDTH << endl;
     /**********************
         GAME LOOP
     ***********************/
@@ -296,7 +307,7 @@ int main() {
         // Draw
         BeginDrawing();
 
-        ClearBackground(RAYWHITE);
+        ClearBackground(PINK);
         // DrawRectangle(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 34, 34, BLUE);
         // Draw initial world
         
